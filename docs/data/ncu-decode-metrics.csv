@@ -1,0 +1,14 @@
+group,metric,value,unit
+stall,Long scoreboard,54.83,warp cycles per issued instruction
+stall,LG throttle,18.40,warp cycles per issued instruction
+stall,Barrier,4.69,warp cycles per issued instruction
+stall,MIO throttle,2.40,warp cycles per issued instruction
+stall,Wait,1.57,warp cycles per issued instruction
+percent,Achieved occupancy,73.15,percent
+percent,Excess global L2 sectors,41.61,percent
+percent,Compute throughput,14.29,percent of peak
+percent,Memory throughput,14.29,percent of peak
+percent,Issue slots busy,11.54,percent
+percent,L2 hit rate,7.20,percent
+scalar,Duration,2.01,ms
+scalar,Registers per thread,46,registers

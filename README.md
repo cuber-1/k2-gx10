@@ -27,6 +27,33 @@ summary, accepted configuration, rejected candidates, and reproduction links.
 The ready-to-apply patch is
 [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
 
+## Results at a glance
+
+![Accepted decode throughput improvement across context depth](docs/assets/decode-long-context-speedup.png)
+
+The accepted L2 prefetch remains effective from an empty KV cache through the
+7168-token band. Every depth won all ten independent confirmation pairs.
+
+![Nsight Systems kernel-time concentration](docs/assets/nsys-kernel-share.png)
+
+Nsight Systems shows why this narrow kernel change matters: the optimized
+Q6_K `N=1` MMVQ family accounts for 57.6% of GPU kernel time in the mixed
+capture, and the exact fused kernel accounts for 99.8% of its isolated decode
+operation.
+
+![Nsight Compute fused-decode bottleneck](docs/assets/ncu-decode-bottleneck.png)
+
+Nsight Compute identifies long-scoreboard memory dependency stalls as the
+dominant bottleneck despite 73.15% achieved occupancy. That evidence motivated
+requesting the next Q6_K weight lines into L2 before demand.
+
+![Q6_K prefill column scaling](docs/assets/q6k-prefill-scaling.png)
+
+The isolated prefill sweep also shows that larger input batches are not
+unconditionally better: effective throughput peaks near `N=1024` and falls at
+larger sizes. See [`docs/visual-results.md`](docs/visual-results.md) for exact
+sources, caveats, and regeneration instructions.
+
 ## Repository contents
 
 - `patches/`: the consolidated production patch and historical eight-warp

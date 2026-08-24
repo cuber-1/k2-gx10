@@ -1,0 +1,8 @@
+capture,kernel,percent,instances,optimized_path
+Mixed prefill + decode,Q6_K fused MMVQ N=1,49.6,721,yes
+Mixed prefill + decode,Q6_K MMQ prefill J=24,22.0,557,no
+Mixed prefill + decode,Q6_K MMVQ N=2,18.6,557,no
+Mixed prefill + decode,Q6_K nonfused MMVQ N=1,8.0,728,yes
+Mixed prefill + decode,All other kernels,1.8,,no
+Isolated fused decode,Q6_K fused MMVQ N=1,99.8,1,yes
+Isolated fused decode,Q8_1 quantize,0.2,1,no
