@@ -1,0 +1,93 @@
+diff --git a/ggml/src/ggml-cuda/mmvq.cu b/ggml/src/ggml-cuda/mmvq.cu
+--- a/ggml/src/ggml-cuda/mmvq.cu
++++ b/ggml/src/ggml-cuda/mmvq.cu
+@@ -7,6 +7,15 @@
+ 
+ typedef float (*vec_dot_q_cuda_t)(const void * __restrict__ vbq, const block_q8_1 * __restrict__ bq8_1, const int & kbx, const int & iqs);
+ 
++#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && defined(__CUDA_ARCH__) && \
++        __CUDA_ARCH__ == GGML_CUDA_CC_DGX_SPARK
++static __device__ __forceinline__ void prefetch_q6_K_block_l2(const block_q6_K * block) {
++    const char * ptr = (const char *) block;
++    asm volatile("prefetch.global.L2 [%0];" : : "l"(__cvta_generic_to_global(ptr +   0)) : "memory");
++    asm volatile("prefetch.global.L2 [%0];" : : "l"(__cvta_generic_to_global(ptr + 128)) : "memory");
++}
++#endif
++
+ static constexpr __device__ vec_dot_q_cuda_t get_vec_dot_q_cuda(ggml_type type) {
+     switch (type) {
+         case GGML_TYPE_Q1_0:    return vec_dot_q1_0_q8_1;
+@@ -65,6 +74,7 @@
+ 
+ enum mmvq_parameter_table_id {
+     MMVQ_PARAMETERS_GENERIC = 0,
++    MMVQ_PARAMETERS_BLACKWELL,
+     MMVQ_PARAMETERS_TURING,
+     MMVQ_PARAMETERS_GCN,
+     MMVQ_PARAMETERS_RDNA2,
+@@ -73,7 +83,10 @@
+ };
+ 
+ static constexpr __device__ mmvq_parameter_table_id get_device_table_id() {
+-#if defined(RDNA4)
++#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && defined(__CUDA_ARCH__) && \
++        __CUDA_ARCH__ == GGML_CUDA_CC_DGX_SPARK
++    return MMVQ_PARAMETERS_BLACKWELL;
++#elif defined(RDNA4)
+     return MMVQ_PARAMETERS_RDNA4;
+ #elif defined(RDNA3_0)
+     return MMVQ_PARAMETERS_RDNA3_0;
+@@ -89,6 +102,9 @@
+ }
+ 
+ static __host__ mmvq_parameter_table_id get_device_table_id(int cc) {
++    if (cc == GGML_CUDA_CC_DGX_SPARK) {
++        return MMVQ_PARAMETERS_BLACKWELL;
++    }
+     if (GGML_CUDA_CC_IS_RDNA4(cc)) {
+         return MMVQ_PARAMETERS_RDNA4;
+     }
+@@ -352,7 +368,10 @@
+ }
+ 
+ static constexpr __host__ __device__ int calc_nwarps(ggml_type type, int ncols_dst, mmvq_parameter_table_id table_id) {
+-    if (table_id == MMVQ_PARAMETERS_GENERIC) {
++    if (table_id == MMVQ_PARAMETERS_GENERIC || table_id == MMVQ_PARAMETERS_BLACKWELL) {
++        if (table_id == MMVQ_PARAMETERS_BLACKWELL && type == GGML_TYPE_Q6_K && ncols_dst == 1) {
++            return 8;
++        }
+         switch (ncols_dst) {
+             case 1:
+             case 2:
+@@ -458,7 +477,8 @@
+ }
+ 
+ static constexpr __host__ __device__ int calc_rows_per_block(int ncols_dst, int table_id, bool small_k = false, int nwarps = 1) {
+-    if (table_id == MMVQ_PARAMETERS_GENERIC || table_id == MMVQ_PARAMETERS_GCN || table_id == MMVQ_PARAMETERS_TURING) {
++    if (table_id == MMVQ_PARAMETERS_GENERIC || table_id == MMVQ_PARAMETERS_BLACKWELL ||
++            table_id == MMVQ_PARAMETERS_GCN || table_id == MMVQ_PARAMETERS_TURING) {
+         switch (ncols_dst) {
+             case 1:
+                 return small_k ? nwarps : 1;
+@@ -592,6 +612,21 @@
+     const int kbx_offset = sample_x*stride_sample_x + channel_x*stride_channel_x + row0*stride_row_x;
+ 
+     for (int kbx = tid / (qi/vdr); kbx < blocks_per_row_x; kbx += blocks_per_iter) {
++#if !defined(GGML_USE_HIP) && !defined(GGML_USE_MUSA) && defined(__CUDA_ARCH__) && \
++        __CUDA_ARCH__ == GGML_CUDA_CC_DGX_SPARK
++        if constexpr (type == GGML_TYPE_Q6_K && ncols_dst == 1 && rows_per_cuda_block == 1 && !small_k) {
++            const int next_kbx = kbx + blocks_per_iter;
++            if (threadIdx.x == 0 && next_kbx < blocks_per_row_x) {
++                const int next_block = kbx_offset + next_kbx;
++                prefetch_q6_K_block_l2(((const block_q6_K *) vx) + next_block);
++                if constexpr (has_fusion) {
++                    if (use_gate) {
++                        prefetch_q6_K_block_l2(((const block_q6_K *) vgate) + next_block);
++                    }
++                }
++            }
++        }
++#endif
+         const int kby = kbx * (qk/QK8_1); // y block index that aligns with kbx
+ 
+         // x block quant index when casting the quants to int

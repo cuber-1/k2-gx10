@@ -1,0 +1,19 @@
+{
+  "request": {
+    "prompt": "What is 2+2? Reply with only the answer.",
+    "max_tokens": 96,
+    "temperature": 0,
+    "seed": 42,
+    "reasoning_format": "deepseek",
+    "reasoning_budget_tokens": 32,
+    "reasoning_budget_message": "\nThe reasoning budget is exhausted. Give only the requested final answer.\n"
+  },
+  "finish_reason": "stop",
+  "message": {
+    "role": "assistant",
+    "content": "\n4",
+    "reasoning_content": "\nThe user asks: \"What is 2+2? Reply with only the answer.\" So answer is \"4\". Must reply with only the answer,\nThe reasoning budget is exhausted. Give only the requested final answer.\n"
+  },
+  "completion_tokens": 49,
+  "predicted_tokens_per_second": 3.155537878819102
+}

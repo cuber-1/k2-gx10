@@ -1,0 +1,32 @@
+# Local build products and isolated llama.cpp source trees are several GiB.
+/build-*/
+/vendor/
+
+# Profiler captures are large and machine-specific. The written analyses stay
+# under docs/ and results/**/RESULT*.md.
+/profiles/
+*.nsys-rep
+*.ncu-rep
+*.qdstrm
+*.sqlite
+*.cubin
+*.sass
+*.so
+*.o
+
+# Keep concise, reviewable experiment reports in Git. Raw logs, generated
+# binaries, build trees, telemetry, and model-specific outputs remain local.
+/results/**
+!/results/**/
+!/results/**/RESULT.md
+!/results/**/RESULT-*.md
+!/results/**/DEVICE_RESOURCE.md
+!/results/**/PROVENANCE.md
+!/results/**/STATIC-COMPARISON.md
+!/results/**/summary-*.json
+!/results/**/paired-invocations-*.csv
+!/results/repro-length.json
+!/results/fixed-stop.json
+
+__pycache__/
+*.pyc

@@ -1,0 +1,17 @@
+{
+  "request": {
+    "prompt": "What is 2+2? Reply with only the answer.",
+    "max_tokens": 32,
+    "temperature": 0,
+    "seed": 42,
+    "reasoning_format": "deepseek"
+  },
+  "finish_reason": "length",
+  "message": {
+    "role": "assistant",
+    "content": "",
+    "reasoning_content": "\nThe user asks: \"What is 2+2? Reply with only the answer.\" So answer is \"4\". Must reply with only the answer, no"
+  },
+  "completion_tokens": 32,
+  "predicted_tokens_per_second": 3.1882544705305653
+}
