@@ -21,17 +21,19 @@ sampling, non-Q6 formats, or other GPU architectures.
 
 | Comparison | Workload | Throughput result | Notes |
 |---|---|---:|---|
+| 4 warps -> 8 warps + L2 prefetch | Full 73B model decode | **+17.4890%** | Direct same-campaign A/B, 5/5 pair wins |
 | 4 warps -> 8 warps | Full 73B model decode | **+4.67%** | Separate earlier validation |
 | 4 warps -> 8 warps | Isolated fused Q6_K kernel | **+5.10% mean paired** | Kernel validation |
 | 8 warps -> 8 warps + L2 prefetch | Full 73B model decode | **+10.4636%** | 3.549480 -> 3.920885 tok/s |
 | 8 warps -> 8 warps + L2 prefetch | Fused Q6_K microbenchmark | **+14.49%, +14.44%** | 10/10 wins in both repeats |
 | 8 warps -> 8 warps + L2 prefetch | Nonfused Q6_K microbenchmark | **+12.13%, +12.13%** | 10/10 wins in both repeats |
 
-The +10.4636% result is an incremental prefetch result against the eight-warp
-baseline, not a same-campaign untouched-upstream-to-final measurement. The two
-separately measured improvements would compose to approximately +15.6% if they
-were perfectly multiplicative, but this project does **not** present that as a
-directly measured end-to-end result.
+The new direct comparison measured pooled medians of 3.238285 tok/s for the
+untouched four-warp build and 3.804630 tok/s for the final combined build. That
+is +17.4890% throughput and 14.8857% less steady decode time per token. All five
+balanced process pairs won; their median gain was +18.0678%. The older staged
+4.67% and 10.4636% results remain useful attribution measurements, but they are
+no longer used to estimate the overall result.
 
 The +10.4636% throughput gain corresponds to about 9.47% less steady decode
 time per generated token. Prompt processing is unaffected, so whole-request
@@ -116,6 +118,7 @@ grid shapes through one persistent schedule.
 ## Reproduce and inspect
 
 - Consolidated patch: [`patches/q6k-gb10-decode-final.patch`](../patches/q6k-gb10-decode-final.patch)
+- Direct combined A/B: [`results/q6k-decode-combined-20260824/RESULT.md`](../results/q6k-decode-combined-20260824/RESULT.md)
 - Full decode notebook/report: [`docs/q6k-decode-analysis.md`](q6k-decode-analysis.md)
 - Final package proof: [`results/q6k-decode-final-package/RESULT.md`](../results/q6k-decode-final-package/RESULT.md)
 - Long-context proof: [`results/q6k-decode-long-context-20260818/RESULT.md`](../results/q6k-decode-long-context-20260818/RESULT.md)

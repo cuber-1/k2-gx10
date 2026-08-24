@@ -39,6 +39,7 @@ def configure() -> None:
         {
             "figure.dpi": 120,
             "savefig.dpi": 180,
+            "svg.hashsalt": "k2-gx10",
             "font.size": 11,
             "axes.titlesize": 15,
             "axes.titleweight": "bold",
@@ -52,9 +53,67 @@ def configure() -> None:
 
 
 def save(fig: plt.Figure, stem: str) -> None:
-    fig.savefig(ASSETS / f"{stem}.png", bbox_inches="tight", facecolor="white")
-    fig.savefig(ASSETS / f"{stem}.svg", bbox_inches="tight", facecolor="white")
+    png_path = ASSETS / f"{stem}.png"
+    svg_path = ASSETS / f"{stem}.svg"
+    fig.savefig(png_path, bbox_inches="tight", facecolor="white")
+    fig.savefig(svg_path, bbox_inches="tight", facecolor="white")
+    svg_path.write_text("\n".join(line.rstrip() for line in svg_path.read_text().splitlines()) + "\n")
     plt.close(fig)
+
+
+def combined_decode_gains() -> None:
+    summary = json.loads(
+        (ROOT / "results/q6k-decode-combined-20260824/summary-direct.json").read_text()
+    )
+    baseline = float(summary["baseline_median_tps"])
+    final = float(summary["final_median_tps"])
+    gain = float(summary["measured_throughput_gain_pct"])
+    pair_gains = np.array([float(row["throughput_gain_pct"]) for row in summary["pairs"]])
+
+    fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.6), constrained_layout=True)
+    fig.suptitle(f"Combined decode patch directly measured +{gain:.2f}%", fontsize=19, weight="bold")
+
+    bars = axes[0].bar(
+        ["Untouched\n4 warps", "8 warps +\nL2 prefetch"],
+        [baseline, final],
+        width=0.62,
+        color=[SLATE, BLUE],
+    )
+    axes[0].set_ylim(0, 4.25)
+    axes[0].set_ylabel("Generated tokens / second")
+    axes[0].set_title("Pooled median, full 73B model")
+    axes[0].bar_label(bars, labels=[f"{baseline:.4f}", f"{final:.4f}"], padding=5, weight="bold")
+    axes[0].text(
+        0.5,
+        0.88,
+        f"+{gain:.4f}% throughput\n{summary['measured_decode_time_reduction_pct']:.4f}% less time/token",
+        transform=axes[0].transAxes,
+        ha="center",
+        va="top",
+        color=BLUE,
+        weight="bold",
+        bbox={"boxstyle": "round,pad=0.4", "facecolor": "#eff6ff", "edgecolor": BLUE},
+    )
+
+    x = np.arange(1, len(pair_gains) + 1)
+    axes[1].plot(x, pair_gains, "o-", color=GREEN, linewidth=2.5, markersize=8)
+    axes[1].axhline(float(summary["paired_median_gain_pct"]), color=SLATE, linestyle="--", linewidth=1.5)
+    axes[1].set_xticks(x)
+    axes[1].set_ylim(0, 25)
+    axes[1].set_xlabel("Independent balanced process pair")
+    axes[1].set_ylabel("Final-build throughput gain (%)")
+    axes[1].set_title(f"{summary['pair_wins']}/{summary['process_pairs']} pair wins; paired median +{summary['paired_median_gain_pct']:.2f}%")
+    for index, value in enumerate(pair_gains, start=1):
+        axes[1].text(index, value + 0.65, f"+{value:.2f}%", ha="center", color=GREEN, weight="bold")
+
+    fig.text(
+        0.5,
+        -0.015,
+        "Direct A/B · fixed n_ctx=8192 · 128 generated tokens · 5 process pairs · 10 measured samples/build",
+        ha="center",
+        color=SLATE,
+    )
+    save(fig, "decode-combined-gain")
 
 
 def long_context() -> None:
@@ -270,6 +329,7 @@ def prefill_scaling() -> None:
 
 def main() -> None:
     configure()
+    combined_decode_gains()
     long_context()
     nsys_kernel_share()
     ncu_bottleneck()

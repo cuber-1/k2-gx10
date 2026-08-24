@@ -1,0 +1,51 @@
+{
+  "comparison": "untouched 4-warps upstream vs 8-warps + L2 prefetch",
+  "workload": "full 73B Q6_K model, n_ctx=8192, depth=0, 128 generated tokens",
+  "process_pairs": 5,
+  "samples_per_build": 10,
+  "baseline_median_tps": 3.238285,
+  "final_median_tps": 3.80463,
+  "measured_throughput_gain_pct": 17.489041267213977,
+  "measured_decode_time_reduction_pct": 14.885678765083599,
+  "pair_wins": 5,
+  "paired_median_gain_pct": 18.067784136726985,
+  "paired_min_gain_pct": 13.665709581035879,
+  "paired_max_gain_pct": 21.72329964618358,
+  "pairs": [
+    {
+      "pair": 1,
+      "baseline_median_tps": 3.193225,
+      "final_median_tps": 3.7701700000000002,
+      "throughput_gain_pct": 18.067784136726985,
+      "decode_time_reduction_pct": 15.30289085107569
+    },
+    {
+      "pair": 2,
+      "baseline_median_tps": 3.2581550000000004,
+      "final_median_tps": 3.703405,
+      "throughput_gain_pct": 13.665709581035879,
+      "decode_time_reduction_pct": 12.02271963233834
+    },
+    {
+      "pair": 3,
+      "baseline_median_tps": 3.24843,
+      "final_median_tps": 3.884645,
+      "throughput_gain_pct": 19.585307363865013,
+      "decode_time_reduction_pct": 16.37768702159399
+    },
+    {
+      "pair": 4,
+      "baseline_median_tps": 3.2554,
+      "final_median_tps": 3.777455,
+      "throughput_gain_pct": 16.03658536585366,
+      "decode_time_reduction_pct": 13.82028376248029
+    },
+    {
+      "pair": 5,
+      "baseline_median_tps": 3.2064649999999997,
+      "final_median_tps": 3.903015,
+      "throughput_gain_pct": 21.72329964618358,
+      "decode_time_reduction_pct": 17.846459724085108
+    }
+  ]
+}

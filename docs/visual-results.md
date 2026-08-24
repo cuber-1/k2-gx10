@@ -7,6 +7,19 @@ and build artifacts remain local and are intentionally excluded from Git.
 
 ## Accepted decode improvement
 
+![Combined decode-stage gains](assets/decode-combined-gain.png)
+
+The direct same-campaign A/B compared untouched four-warps against the final
+eight-warps-plus-L2-prefetch build. Pooled medians were 3.238285 and 3.804630
+tok/s respectively: **+17.4890% throughput** and **14.8857% less decode time
+per token**. All five balanced process pairs won; their median gain was
++18.0678%, with a range of +13.6657% to +21.7233%.
+
+Each process used the full 73B Q6_K model, fixed `n_ctx=8192`, Flash Attention,
+CUDA graphs, f16 K/V, 128 generated tokens, and two measured repetitions after
+the built-in warm-up. Source:
+`results/q6k-decode-combined-20260824/summary-direct.json`.
+
 ![Decode throughput versus context depth](assets/decode-long-context-speedup.png)
 
 The accepted 0/128-byte L2 prefetch improves the already-eight-warp build at

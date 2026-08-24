@@ -10,17 +10,21 @@ The accepted patch changes the GB10-only Q6_K single-token matrix-vector decode
 kernel in two ways: it uses eight warps and prefetches the next Q6_K weight
 blocks into GPU L2 at byte offsets 0 and 128.
 
-- Eight warps separately improved full-model generation by **4.67%**.
-- L2 prefetch then improved the already-eight-warp full model from 3.549480 to
-  3.920885 tok/s: **+10.4636% throughput** and approximately **9.47% less
-  steady decode time per token**.
+- A new direct same-campaign comparison measured the combined patch at
+  **3.804630 versus 3.238285 tok/s: +17.4890% throughput and 14.8857% less
+  steady decode time per token**, with 5/5 independent process-pair wins.
+- In the earlier staged campaigns, eight warps separately improved full-model
+  generation by **4.67%**, then L2 prefetch improved the already-eight-warp
+  build by **10.4636%**.
 - Independent fixed-8192-context confirmation measured **+11.7542%** at the
   shallow band and **+11.2610%** at the 7168-token band, with 10/10 wins at
   every tested depth.
 - No prefill optimization passed the correctness and performance gates.
 
-The two decode gains were measured in separate campaigns; this repository does
-not claim an unmeasured upstream-to-final combined percentage. Read
+The direct combined experiment supersedes the earlier mathematical estimate.
+Read the
+[`direct combined A/B report`](results/q6k-decode-combined-20260824/RESULT.md)
+or
 [`docs/final-results.md`](docs/final-results.md) for the complete quantitative
 summary, accepted configuration, rejected candidates, and reproduction links.
 
@@ -28,6 +32,12 @@ The ready-to-apply patch is
 [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
 
 ## Results at a glance
+
+![Combined eight-warp and L2-prefetch decode gains](docs/assets/decode-combined-gain.png)
+
+The eight-warp and L2-prefetch improvements are complementary. A direct
+untouched-four-warps versus final-patch experiment measured **+17.4890%**
+overall decode throughput, with all five balanced process pairs winning.
 
 ![Accepted decode throughput improvement across context depth](docs/assets/decode-long-context-speedup.png)
 
