@@ -31,6 +31,8 @@ summary, accepted configuration, rejected candidates, and reproduction links.
 The ready-to-apply patch is
 [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
 For a short source tour, start with [`docs/code-walkthrough.md`](docs/code-walkthrough.md).
+For the real profiler UI and the exact code-to-report call chain, see the
+[`Nsight Compute walkthrough`](docs/nsight-compute-walkthrough.md).
 
 ## Results at a glance
 
@@ -76,6 +78,8 @@ sources, caveats, and regeneration instructions.
 - `src/` and `scripts/`: the bounded Q6_K microbenchmarks and analysis tools.
 - [`docs/code-walkthrough.md`](docs/code-walkthrough.md): the shortest path through the accepted
   CUDA patch, benchmark, validation, and result evidence.
+- [`docs/nsight-compute-walkthrough.md`](docs/nsight-compute-walkthrough.md): real Nsight Compute
+  screenshots, the code that generates the report, and interview talking points.
 
 Large GGUF shards, isolated llama.cpp copies, build trees, raw profiler
 captures, and raw timing logs are intentionally excluded. Set `LLAMA_CPP_ROOT`,

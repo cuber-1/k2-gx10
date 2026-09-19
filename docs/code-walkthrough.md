@@ -76,6 +76,10 @@ The key pieces are:
 Correctness is checked before performance. Accepted prefetch outputs were also byte-identical to
 the baseline GPU path because cache hints should not alter arithmetic.
 
+The [`Nsight Compute walkthrough`](nsight-compute-walkthrough.md) shows this exact benchmark inside
+the profiler, including the selected-kernel summary, bottleneck metrics, compiled SASS, and the
+shell-script-to-CUDA call chain.
+
 ## 4. Follow the validation ladder
 
 The change moved through increasingly expensive gates:

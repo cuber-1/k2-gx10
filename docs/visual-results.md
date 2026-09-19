@@ -72,6 +72,10 @@ That profile motivated two complementary changes:
 Source:
 `profiles/ncu-microbenchmark/q6k-decode-stage2-bottleneck-analysis-details.txt`.
 
+The derived chart above is easier to read quickly. The
+[`Nsight Compute walkthrough`](nsight-compute-walkthrough.md) also includes three screenshots from
+the real saved report and maps the profiler view back to the benchmark, wrapper, and CUDA patch.
+
 ## Why a larger prefill input eventually stops helping
 
 ![Q6_K prefill scaling](assets/q6k-prefill-scaling.png)
