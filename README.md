@@ -30,6 +30,7 @@ summary, accepted configuration, rejected candidates, and reproduction links.
 
 The ready-to-apply patch is
 [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
+For a short source tour, start with [`docs/code-walkthrough.md`](docs/code-walkthrough.md).
 
 ## Results at a glance
 
@@ -73,6 +74,8 @@ sources, caveats, and regeneration instructions.
 - `results/`: curated result/resource/provenance reports and compact
   machine-readable long-context summaries.
 - `src/` and `scripts/`: the bounded Q6_K microbenchmarks and analysis tools.
+- [`docs/code-walkthrough.md`](docs/code-walkthrough.md): the shortest path through the accepted
+  CUDA patch, benchmark, validation, and result evidence.
 
 Large GGUF shards, isolated llama.cpp copies, build trees, raw profiler
 captures, and raw timing logs are intentionally excluded. Set `LLAMA_CPP_ROOT`,
@@ -88,6 +91,9 @@ The smallest supported fix is llama.cpp's reasoning-budget sampler. It forces th
 Start the server:
 
 ```bash
+export K2_MODEL=/path/to/K2-Think-V2-Q6_K-00001-of-00004.gguf
+# Optional when llama.cpp is not at $HOME/llama.cpp:
+export LLAMA_SERVER=/path/to/llama-server
 ./run-k2-server.sh
 ```
 
@@ -180,4 +186,4 @@ changing production; see
 - Official model: https://huggingface.co/LLM360/K2-Think-V2
 - Official template: https://huggingface.co/LLM360/K2-Think-V2/blob/main/chat_template.jinja
 - Official tokenizer configuration: https://huggingface.co/LLM360/K2-Think-V2/blob/main/tokenizer_config.json
-- Local llama.cpp endpoint/parameter documentation: `/home/dvijraicha/llama.cpp/tools/server/README.md`
+- [llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)

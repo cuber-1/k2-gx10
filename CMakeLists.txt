@@ -5,7 +5,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-set(LLAMA_CPP_ROOT "/home/dvijraicha/llama.cpp" CACHE PATH "Pinned llama.cpp source tree")
+set(LLAMA_CPP_ROOT "$ENV{HOME}/llama.cpp" CACHE PATH "Pinned llama.cpp source tree")
 if(NOT EXISTS "${LLAMA_CPP_ROOT}/ggml/CMakeLists.txt")
     message(FATAL_ERROR "LLAMA_CPP_ROOT does not identify the expected llama.cpp tree")
 endif()
