@@ -4,6 +4,24 @@ This repository documents a measured CUDA inference-optimization project for
 K2-Think-V2 Q6_K on NVIDIA GB10 / DGX Spark, plus the verified launcher and
 reasoning-budget fix used to serve the model.
 
+## Start here
+
+For an interview or first review, follow this path instead of opening the
+`results/` directories at random:
+
+1. [`walkthrough/README.md`](walkthrough/README.md) — chronological 8–12 minute
+   tour from the model source through profiling, code changes, and validation.
+2. [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch)
+   — the complete accepted CUDA change.
+3. [`src/q6k-microbench.cpp`](src/q6k-microbench.cpp) — the bounded GGML
+   reproduction and CPU/CUDA correctness check.
+4. [`results/q6k-decode-combined-20260824/RESULT.md`](results/q6k-decode-combined-20260824/RESULT.md)
+   — the direct untouched-versus-final full-model result.
+
+The top-level source, `walkthrough/`, `patches/`, and compact result reports are
+the review surface. The remaining `results/` files are the supporting evidence
+archive for deeper questions.
+
 ## Final optimization result
 
 The accepted patch changes the GB10-only Q6_K single-token matrix-vector decode
@@ -30,10 +48,6 @@ summary, accepted configuration, rejected candidates, and reproduction links.
 
 The ready-to-apply patch is
 [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
-For a chronological interview tour—from the model source through real Nsight
-Systems screenshots, kernel isolation, CUDA changes, rejected experiments, and
-full-model validation—start with the
-[`walkthrough/` guide](walkthrough/README.md).
 For a short source tour, start with [`docs/code-walkthrough.md`](docs/code-walkthrough.md).
 For the real profiler UI and the exact code-to-report call chain, see the
 [`Nsight Compute walkthrough`](docs/nsight-compute-walkthrough.md).
