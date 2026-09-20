@@ -4,13 +4,12 @@ This repository documents a measured CUDA inference-optimization project for
 K2-Think-V2 Q6_K on NVIDIA GB10 / DGX Spark, plus the verified launcher and
 reasoning-budget fix used to serve the model.
 
-## Start here
+## Project overview
 
-For an interview or first review, follow this path instead of opening the
-`results/` directories at random:
+The core implementation and evidence are organized in this order:
 
-1. [`walkthrough/README.md`](walkthrough/README.md) — chronological 8–12 minute
-   tour from the model source through profiling, code changes, and validation.
+1. [`walkthrough/README.md`](walkthrough/README.md) — chronological case study
+   from the model source through profiling, code changes, and validation.
 2. [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch)
    — the complete accepted CUDA change.
 3. [`src/q6k-microbench.cpp`](src/q6k-microbench.cpp) — the bounded GGML
@@ -18,9 +17,9 @@ For an interview or first review, follow this path instead of opening the
 4. [`results/q6k-decode-combined-20260824/RESULT.md`](results/q6k-decode-combined-20260824/RESULT.md)
    — the direct untouched-versus-final full-model result.
 
-The top-level source, `walkthrough/`, `patches/`, and compact result reports are
-the review surface. The remaining `results/` files are the supporting evidence
-archive for deeper questions.
+The top-level source, `walkthrough/`, `patches/`, and compact result reports
+contain the primary implementation and findings. The remaining `results/`
+files preserve the supporting evidence for each experiment.
 
 ## Final optimization result
 
@@ -48,7 +47,7 @@ summary, accepted configuration, rejected candidates, and reproduction links.
 
 The ready-to-apply patch is
 [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
-For a short source tour, start with [`docs/code-walkthrough.md`](docs/code-walkthrough.md).
+For a compact source guide, see [`docs/code-walkthrough.md`](docs/code-walkthrough.md).
 For the real profiler UI and the exact code-to-report call chain, see the
 [`Nsight Compute walkthrough`](docs/nsight-compute-walkthrough.md).
 
@@ -97,7 +96,7 @@ sources, caveats, and regeneration instructions.
 - [`docs/code-walkthrough.md`](docs/code-walkthrough.md): the shortest path through the accepted
   CUDA patch, benchmark, validation, and result evidence.
 - [`docs/nsight-compute-walkthrough.md`](docs/nsight-compute-walkthrough.md): real Nsight Compute
-  screenshots, the code that generates the report, and interview talking points.
+  screenshots, the code that generates the report, and metric interpretation.
 
 Large GGUF shards, isolated llama.cpp copies, build trees, raw profiler
 captures, and raw timing logs are intentionally excluded. Set `LLAMA_CPP_ROOT`,

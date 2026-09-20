@@ -1,31 +1,31 @@
-# K2-GX10: chronological interview walkthrough
+# K2-GX10 optimization case study
 
-Use this page as the start of the repository tour. It follows the project in
-the order the work actually happened: identify the model and baseline, run the
-real workload, find the hot kernel, isolate it, diagnose it, change it, and
-validate the result.
+This page follows the project in chronological order: identify the model and
+baseline, run the real workload, find the hot kernel, isolate it, diagnose it,
+change it, and validate the result.
 
 This is an **inference optimization** repository, not a model-training
 repository. There is no `model.py` or `training.py` to present. The important
 code is a llama.cpp launcher, profiler harnesses, a C++ microbenchmark, a CUDA
 patch, and the A/B measurement scripts.
 
-## The 30-second project summary
+## Summary
 
-> I ran the 73B K2-Think-V2 Q6_K model through llama.cpp on an NVIDIA GB10. A
-> CUDA-graph-node Nsight Systems capture showed that the Q6_K single-token
-> matrix-vector family consumed 642.679 of 654.441 milliseconds of kernel time,
-> or 98.20%. Nsight Compute then showed long-scoreboard and global-load stalls
-> with only a 7.20% L2 hit rate. I changed only the GB10 Q6_K `N=1` decode path:
-> four to eight warps per block, then bounded L2 prefetches at byte offsets 0
-> and 128. A direct full-model A/B measured 3.238285 to 3.804630 tokens/second,
-> a 17.4890% throughput increase, with five out of five process-pair wins. I
-> checked numerical correctness, resource use, isolated timing, full-model
-> timing, and performance through a 7,168-token KV-cache depth.
+The 73B K2-Think-V2 Q6_K model was profiled through llama.cpp on an NVIDIA GB10.
+A CUDA-graph-node Nsight Systems capture showed that the Q6_K single-token
+matrix-vector family consumed 642.679 of 654.441 milliseconds of kernel time,
+or 98.20%. Nsight Compute then showed long-scoreboard and global-load stalls
+with only a 7.20% L2 hit rate. The accepted changes affect only the GB10 Q6_K
+`N=1` decode path: four to eight warps per block, followed by bounded L2
+prefetches at byte offsets 0 and 128. A direct full-model A/B measured 3.238285
+to 3.804630 tokens/second, a 17.4890% throughput increase, with five out of five
+process-pair wins. Validation covered numerical correctness, resource use,
+isolated timing, full-model timing, and performance through a 7,168-token
+KV-cache depth.
 
-## Interview route
+## Analysis workflow
 
-If the interviewer asks to see the repository, open these in order:
+The primary implementation and evidence are organized in this order:
 
 1. This README and the [model launcher](../run-k2-server.sh).
 2. The [Nsight Systems capture script](../scripts/profile_nsys.sh) and the two
@@ -39,8 +39,8 @@ If the interviewer asks to see the repository, open these in order:
 7. The [long-context result](../results/q6k-decode-long-context-20260818/RESULT.md)
    and the rejected experiments near the end of this page.
 
-That route is enough for an 8-12 minute walkthrough. Go into the deeper files
-only when the interviewer asks.
+The later sections explain each stage and link to the corresponding source and
+measurement artifacts.
 
 ## 1. Start with the exact model and software baseline
 
@@ -62,11 +62,11 @@ scales, and a two-byte FP16 delta. That is 6.5625 effective bits per weight.
 During single-token generation, these compressed weight blocks are read and
 dequantized inside a matrix-vector kernel.
 
-What to say:
+Reproducibility principle:
 
-> I froze the model snapshot, llama.cpp revision, build artifacts, and hardware
-> state before comparing code. That made the CUDA change the controlled
-> variable.
+The model snapshot, llama.cpp revision, build artifacts, and hardware state
+were fixed before comparing code so that the CUDA change remained the
+controlled variable.
 
 ## 2. Run the real model first
 
@@ -337,7 +337,7 @@ These failures show the engineering process: form one-variable hypotheses,
 declare gates first, preserve evidence, and keep only changes that are correct
 and repeatably faster.
 
-## 11. What is actually in GitHub
+## 11. Repository scope
 
 Committed:
 
@@ -354,19 +354,19 @@ Not committed:
 - build directories and duplicate llama.cpp worktrees;
 - large raw `.nsys-rep`, `.ncu-rep`, and generated SQLite databases.
 
-That boundary is deliberate. A reviewer can inspect the exact code and numeric
-evidence on GitHub, then regenerate the large machine-specific artifacts on a
+That boundary is deliberate. The exact code and compact numerical evidence are
+versioned, while the large machine-specific artifacts can be regenerated on a
 GB10.
 
-## 12. A clean closing answer
+## 12. Conclusions
 
-> The main lesson was to optimize the measured path, not the most impressive
-> looking kernel. I first made CUDA graph nodes visible, proved Q6_K `N=1`
-> matrix-vector decode was 98.20% of recorded kernel time, reproduced its shape
-> in a bounded benchmark, and used Nsight Compute to identify memory-dependency
-> stalls. I tried narrow changes, rejected the ones that failed resource or
-> paired-timing gates, and confirmed the accepted eight-warp plus L2-prefetch
-> patch on the full 73B model and across context depth.
+The optimization targeted the measured critical path. CUDA graph-node tracing
+showed that Q6_K `N=1` matrix-vector decode represented 98.20% of the recorded
+kernel time. A bounded microbenchmark reproduced its shape, and Nsight Compute
+identified memory-dependency stalls. Narrow candidate changes were tested
+against predefined correctness, resource, and paired-timing gates. The
+accepted eight-warp plus L2-prefetch patch was then confirmed on the full 73B
+model and across context depth.
 
 For a source-focused follow-up, continue with the shorter
 [`docs/code-walkthrough.md`](../docs/code-walkthrough.md) and the detailed

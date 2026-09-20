@@ -47,7 +47,7 @@ kernel, the patch contains the optimized code, and the profiling wrapper measure
 
 ![Nsight Compute selected fused Q6_K kernel summary](assets/nsight-compute-summary.png)
 
-What to point out in an interview:
+Key observations:
 
 - the report contains one selected kernel result, not an average over unrelated GPU work;
 - the launch shape is grid `(28672, 1, 1)` and block `(32, 4, 1)` for the four-warp baseline;
@@ -82,7 +82,7 @@ The source pane is displaying SASS, the GPU instructions emitted by the compiler
 columns correlate instructions with live registers, scoreboard dependencies, stall samples, and
 instruction categories. This view is useful evidence that the investigation reached the compiled
 kernel rather than stopping at Python or high-level model code. It is not necessary to explain
-individual SASS instructions in a general software-engineering interview.
+individual SASS instructions to understand the optimization rationale.
 
 ## Reproduce or open it locally
 
@@ -107,16 +107,15 @@ ncu-ui profiles/ncu-microbenchmark/q6k-decode-stage2-bottleneck-analysis.ncu-rep
 ```
 
 Generating a fresh report requires access to privileged GPU performance counters and invokes the
-guarded Stage 2 command documented by the plan. Do not rerun profiling during an interview; open
-the saved report or use these committed screenshots. Raw `.ncu-rep` files are intentionally ignored
+guarded Stage 2 command documented by the plan. The saved report and committed screenshots can be
+used when profiling access is unavailable. Raw `.ncu-rep` files are intentionally ignored
 because they are machine-specific, while the screenshots and metric extracts are reviewable in Git.
 
-## A concise interview explanation
+## Optimization rationale
 
-> I first used Nsight Systems to identify the hot kernel family. Then I reproduced the fused Q6_K
-> decode operation in a bounded C++ GGML microbenchmark and used a one-launch Nsight Compute filter
-> on the exact CUDA specialization. The report showed high occupancy but a 7.2% L2 hit rate and
-> dominant long-scoreboard stalls, which means the warps were waiting on global-memory dependencies.
-> That evidence led me to test more warp-level parallelism and next-block L2 prefetching. I accepted
-> the patch only after CPU/GPU correctness checks, repeated isolated A/B pairs, fresh-process
-> full-model tests, and long-context confirmation.
+Nsight Systems identified the hot kernel family. The fused Q6_K decode operation was then reproduced
+in a bounded C++ GGML microbenchmark and isolated with a one-launch Nsight Compute filter. The report
+showed high occupancy but a 7.2% L2 hit rate and dominant long-scoreboard stalls, indicating that
+warps were waiting on global-memory dependencies. That evidence motivated testing more warp-level
+parallelism and next-block L2 prefetching. The patch was accepted only after CPU/GPU correctness
+checks, repeated isolated A/B pairs, fresh-process full-model tests, and long-context confirmation.
