@@ -30,6 +30,10 @@ summary, accepted configuration, rejected candidates, and reproduction links.
 
 The ready-to-apply patch is
 [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
+For a chronological interview tour—from the model source through real Nsight
+Systems screenshots, kernel isolation, CUDA changes, rejected experiments, and
+full-model validation—start with the
+[`walkthrough/` guide](walkthrough/README.md).
 For a short source tour, start with [`docs/code-walkthrough.md`](docs/code-walkthrough.md).
 For the real profiler UI and the exact code-to-report call chain, see the
 [`Nsight Compute walkthrough`](docs/nsight-compute-walkthrough.md).
