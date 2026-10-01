@@ -1,210 +1,120 @@
-# K2-Think-V2 inference optimization on llama.cpp
+# K2-GX10
 
-This repository documents a measured CUDA inference-optimization project for
-K2-Think-V2 Q6_K on NVIDIA GB10 / DGX Spark, plus the verified launcher and
-reasoning-budget fix used to serve the model.
+Last summer, I wanted to learn how to optimize model inference on my NVIDIA
+DGX Spark. After speaking with researchers about projects that would make good
+use of the machine, I chose to focus on inference optimization in
+[`llama.cpp`](https://github.com/ggml-org/llama.cpp).
 
-## Project overview
+I used the
+[`K2-Think-V2 Q6_K GGUF`](https://huggingface.co/benjaminradio/K2-Think-V2-GGUF)
+on a DGX Spark with 128 GB of unified memory.
 
-The core implementation and evidence are organized in this order:
+## Prefill and decode
 
-1. [`walkthrough/README.md`](walkthrough/README.md) — chronological case study
-   from the model source through profiling, code changes, and validation.
-2. [`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch)
-   — the complete accepted CUDA change.
-3. [`src/q6k-microbench.cpp`](src/q6k-microbench.cpp) — the bounded GGML
-   reproduction and CPU/CUDA correctness check.
-4. [`results/q6k-decode-combined-20260824/RESULT.md`](results/q6k-decode-combined-20260824/RESULT.md)
-   — the direct untouched-versus-final full-model result.
+Model inference has two main phases:
 
-The top-level source, `walkthrough/`, `patches/`, and compact result reports
-contain the primary implementation and findings. The remaining `results/`
-files preserve the supporting evidence for each experiment.
+1. **Prefill** reads and processes the input prompt.
+2. **Decode** generates the response one token at a time.
 
-## Final optimization result
+My work focused on decode. Each transformer layer contains attention, which
+lets the current token use information from earlier tokens, and a feed-forward
+network (FFN), which performs additional processing on the current token. The
+hot Q6_K matrix-vector kernel was mostly used by the FFN during decode.
 
-The accepted patch changes the GB10-only Q6_K single-token matrix-vector decode
-kernel in two ways: it uses eight warps and prefetches the next Q6_K weight
-blocks into GPU L2 at byte offsets 0 and 128.
+## Method
 
-- A new direct same-campaign comparison measured the combined patch at
-  **3.804630 versus 3.238285 tok/s: +17.4890% throughput and 14.8857% less
-  steady decode time per token**, with 5/5 independent process-pair wins.
-- In the earlier staged campaigns, eight warps separately improved full-model
-  generation by **4.67%**, then L2 prefetch improved the already-eight-warp
-  build by **10.4636%**.
-- Independent fixed-8192-context confirmation measured **+11.7542%** at the
-  shallow band and **+11.2610%** at the 7168-token band, with 10/10 wins at
-  every tested depth.
-- No prefill optimization passed the correctness and performance gates.
+1. Profile the model running in `llama.cpp`.
+2. Use **Nsight Systems** to find where GPU time is spent.
+3. Use **Nsight Compute** to determine why the hot kernel is slow.
+4. Tune one parameter or behavior for the target GPU.
+5. Validate correctness and measure every change.
 
-The direct combined experiment supersedes the earlier mathematical estimate.
-Read the
-[`direct combined A/B report`](results/q6k-decode-combined-20260824/RESULT.md)
-or
-[`docs/final-results.md`](docs/final-results.md) for the complete quantitative
-summary, accepted configuration, rejected candidates, and reproduction links.
+### Nsight Systems
 
-The ready-to-apply patch is
-[`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
-For a compact source guide, see [`docs/code-walkthrough.md`](docs/code-walkthrough.md).
-For the real profiler UI and the exact code-to-report call chain, see the
-[`Nsight Compute walkthrough`](docs/nsight-compute-walkthrough.md).
+Nsight Systems showed that the Q6_K single-token matrix-vector kernels took a
+large share of GPU kernel time, so I focused on that path.
 
-## Results at a glance
+![Nsight Systems kernel-time profile](docs/assets/nsight-systems-profile.png)
 
-![Combined eight-warp and L2-prefetch decode gains](docs/assets/decode-combined-gain.png)
+### Nsight Compute
 
-The eight-warp and L2-prefetch improvements are complementary. A direct
-untouched-four-warps versus final-patch experiment measured **+17.4890%**
-overall decode throughput, with all five balanced process pairs winning.
+Nsight Compute showed that the hot kernel frequently stalled while waiting for
+data from memory. The low L2 hit rate was useful together with the memory-wait
+stall measurements: it suggested that upcoming weight data often was not ready
+when the warps needed it.
 
-![Accepted decode throughput improvement across context depth](docs/assets/decode-long-context-speedup.png)
+![Nsight Compute profile](docs/assets/nsight-compute-profile.png)
 
-The accepted L2 prefetch remains effective from an empty KV cache through the
-7168-token band. Every depth won all ten independent confirmation pairs.
+## Accepted changes
 
-![Nsight Systems kernel-time concentration](docs/assets/nsys-kernel-share.png)
+### 1. Increase the kernel from four warps to eight warps
 
-Nsight Systems shows why this narrow kernel change matters: the optimized
-Q6_K `N=1` MMVQ family accounts for 57.6% of GPU kernel time in the mixed
-capture, and the exact fused kernel accounts for 99.8% of its isolated decode
-operation.
+A warp is a group of 32 GPU threads. The DGX Spark GPU has 48 streaming
+multiprocessors (SMs) and supports up to 48 active warps per SM.
 
-![Nsight Compute fused-decode bottleneck](docs/assets/ncu-decode-bottleneck.png)
+For the simplified one-row view of this matrix-vector operation:
 
-Nsight Compute identifies long-scoreboard memory dependency stalls as the
-dominant bottleneck despite 73.15% achieved occupancy. That evidence motivated
-requesting the next Q6_K weight lines into L2 before demand.
+- four warps provide `4 x 32 = 128` threads working on a row;
+- eight warps provide `8 x 32 = 256` threads working on a row.
 
-![Q6_K prefill column scaling](docs/assets/q6k-prefill-scaling.png)
+The four-warp version did not expose enough parallel work to hide the time
+spent waiting for memory. Eight warps gave the GPU more work that could make
+progress while other warps waited.
 
-The isolated prefill sweep also shows that larger input batches are not
-unconditionally better: effective throughput peaks near `N=1024` and falls at
-larger sizes. See [`docs/visual-results.md`](docs/visual-results.md) for exact
-sources, caveats, and regeneration instructions.
+I did not keep increasing the warp count because more warps also require more
+resources and coordination. The correct value had to be measured on the target
+GPU.
 
-## Repository contents
+Result: **+4.67% decode throughput**.
 
-- `patches/`: the consolidated production patch and historical eight-warp
-  stage.
-- `docs/`: the final summary, kernel analysis, profiler interpretation, and
-  experiment log.
-- `results/`: curated result/resource/provenance reports and compact
-  machine-readable long-context summaries.
-- `src/` and `scripts/`: the bounded Q6_K microbenchmarks and analysis tools.
-- [`docs/code-walkthrough.md`](docs/code-walkthrough.md): the shortest path through the accepted
-  CUDA patch, benchmark, validation, and result evidence.
-- [`docs/nsight-compute-walkthrough.md`](docs/nsight-compute-walkthrough.md): real Nsight Compute
-  screenshots, the code that generates the report, and metric interpretation.
+[View the eight-warp patch](https://github.com/cuber-1/travelers-interview-walkthroughs/blob/main/K2-GX10/03-accepted-eight-warps/8-warps.patch)
 
-Large GGUF shards, isolated llama.cpp copies, build trees, raw profiler
-captures, and raw timing logs are intentionally excluded. Set `LLAMA_CPP_ROOT`,
-`LLAMA_SERVER`, `K2_MODEL`, and optionally `Q6K_BUILD_DIR` to use the scripts on
-another machine.
+### 2. Prefetch Q6_K weights into L2 cache
 
-## Serving result
+Q6_K packs 256 quantized weights into a 210-byte block. The accepted change
+prefetches the next block at byte offsets 0 and 128 so the memory request can
+begin before the computation needs that data.
 
-The GGUF is not missing its official template or stop tokens. The failure is an unbounded reasoning phase combined with an ineffective `reasoning_effort="low"` request.
+This targets the memory stalls found in Nsight Compute. Instead of waiting to
+request the next weights at the moment they are needed, the kernel asks for
+them earlier and gives the memory system time to place them closer to the GPU.
 
-The smallest supported fix is llama.cpp's reasoning-budget sampler. It forces the model through the closing reasoning tag while leaving enough generation tokens for a visible final answer and `<|im_end|>`.
+Result over the already-eight-warp version: **+10.46% decode throughput**.
 
-Start the server:
+[View the L2-prefetch patch](https://github.com/cuber-1/travelers-interview-walkthroughs/blob/main/K2-GX10/04-accepted-prefetch/prefetch-0-128.patch)
 
-```bash
-export K2_MODEL=/path/to/K2-Think-V2-Q6_K-00001-of-00004.gguf
-# Optional when llama.cpp is not at $HOME/llama.cpp:
-export LLAMA_SERVER=/path/to/llama-server
-./run-k2-server.sh
-```
+## Failed attempt
 
-In another terminal, run the assertion-based client:
+I also tried having one block process two output rows at once. The idea was to
+give each block more work and improve GPU utilization. However, the change
+required more registers and shared memory, which reduced how many blocks could
+run at the same time. It failed the resource gate, so I rejected it instead of
+moving it into full-model testing.
 
-```bash
-./client_test.py
-```
+## Testing
 
-The production default is a 512-token reasoning budget. Override it without editing the script if needed:
+I used controlled A/B testing between the baseline and modified builds. I also
+reversed the run order across pairs to reduce temperature, clock, and time-order
+bias. Every accepted change had to preserve correctness and show a repeatable
+performance improvement.
 
-```bash
-K2_REASONING_BUDGET=1024 ./run-k2-server.sh
-```
+## Final results
 
-Keep `max_tokens` larger than the reasoning budget so the model has room to emit its final answer. The fast test deliberately overrides the per-request budget to 32 and uses `max_tokens=96`.
+| Comparison | Decode throughput improvement |
+|---|---:|
+| Four warps to eight warps | **+4.67%** |
+| L2 prefetch added to eight warps | **+10.46%** |
+| Original baseline to final combined version | **+17.49%** |
 
-## Diagnosis
+The final direct full-model comparison improved decode throughput from
+**3.2383 to 3.8046 tokens per second**, with the optimized version winning all
+five paired comparisons.
 
-Inspected setup:
+The staged percentages use different benchmark campaigns, so they should not
+be added together. The final number comes from a separate direct comparison of
+the original four-warp baseline against the combined eight-warp and L2-prefetch
+version.
 
-- llama.cpp build `10380`, commit `0b1bad14f`, Linux ARM64 with CUDA.
-- Cached `benjaminradio/K2-Think-V2-GGUF` Q6_K snapshot `3064ec56b7c735f4f133aa10cfcca3ef3bd718f7`; four shards, 55.43 GiB total.
-- Official source: `LLM360/K2-Think-V2` (the Hugging Face commits are authored by the IFM team).
+![Combined decode throughput improvement](docs/assets/decode-combined-gain.png)
 
-GGUF versus official tokenizer/template:
-
-- The embedded `tokenizer.chat_template` differs from the official `chat_template.jinja` only by a final newline.
-- GGUF and official tokenizer both use BOS ID `0` (`<|begin_of_text|>`) and EOS ID `1` (`<|end_of_text|>`).
-- `<|im_start|>` is ID `250018`; `<|im_end|>` is ID `250019`.
-- llama.cpp's startup token dump marks IDs `1`, `250003`, and `250019` as EOG. `ignore_eos` is false. Stop-token configuration is therefore correct.
-
-Exact rendered prompts for the test message:
-
-```text
-default:
-<|im_start|>user
-What is 2+2? Reply with only the answer.<|im_end|>
-<|im_start|>assistant
-<think>
-
-OpenAI reasoning_effort="low":
-<|im_start|>user
-What is 2+2? Reply with only the answer.<|im_end|>
-<|im_start|>assistant
-<think>
-
-chat_template_kwargs.reasoning_effort="low":
-<|im_start|>user
-What is 2+2? Reply with only the answer.<|im_end|>
-<|im_start|>assistant
-<think_faster>
-```
-
-This llama.cpp version documents and implements only `reasoning_effort="none"`; other OpenAI `reasoning_effort` values are ignored. Passing `reasoning_effort` through `chat_template_kwargs` does alter the template, but llama.cpp's differential reasoning parser detects only `<think>...</think>` for this template, not the alternative `<think_fast>` or `<think_faster>` pair. Use the standard high-effort tag plus `reasoning_budget_tokens` instead.
-
-The controlled failure in [results/repro-length.json](results/repro-length.json) has the correct `4` in `reasoning_content`, empty visible `content`, and `finish_reason="length"`. The fixed run in [results/fixed-stop.json](results/fixed-stop.json) has visible `content="\n4"` and `finish_reason="stop"`.
-
-No model files, llama.cpp sources, CUDA installation, or drivers were changed.
-
-## Q6_K kernel profiling
-
-The isolated Q6_K benchmark now supports bounded variable columns and repeated timing. See [the verified column sweep](docs/q6k-column-sweep.md) for commands, results, actual kernel specializations, and the representative Nsight Compute follow-up.
-
-Decode profiling and the accepted DGX-Spark-only Q6_K decode patch are in
-[the decode analysis](docs/q6k-decode-analysis.md). It combines the eight-warp
-N=1 mapping with distance-one L2 prefetches at offsets 0 and 128. Against the
-eight-warp baseline, full-model generation improved by 10.4636% (3.549480 to
-3.920885 tok/s median); the two fused microbenchmark repeats improved by 14.49%
-and 14.44%. The upstream llama.cpp tree was left unchanged; the consolidated
-ready-to-apply patch is
-[`patches/q6k-gb10-decode-final.patch`](patches/q6k-gb10-decode-final.patch).
-
-The later cooperative full-FFN megakernel prototype was correct and memory-safe
-but 4.3-4.7% slower than the accepted graph, including a 48-register/five-CTA
-occupancy follow-up. It was rejected; the complete report is
-[`results/q6k-decode-ffn-megakernel/RESULT.md`](results/q6k-decode-ffn-megakernel/RESULT.md).
-
-Two exact-size Q6_K field-SoA repacks were also implemented. The first aligned
-`ql` and retained an 82-byte tail; the second separated `ql`, `qh`, scales, and
-deltas completely. Both preserved every quantized byte, produced byte-identical
-GPU output, and passed sanitizer, but measured only +0.77% and +0.61% paired
-median with 6/10 wins and intervals crossing zero. They were rejected without
-changing production; see
-[`results/q6k-decode-q6-soa/RESULT.md`](results/q6k-decode-q6-soa/RESULT.md) and
-[`results/q6k-decode-q6-full-soa/RESULT.md`](results/q6k-decode-q6-full-soa/RESULT.md).
-
-## References
-
-- Official model: https://huggingface.co/LLM360/K2-Think-V2
-- Official template: https://huggingface.co/LLM360/K2-Think-V2/blob/main/chat_template.jinja
-- Official tokenizer configuration: https://huggingface.co/LLM360/K2-Think-V2/blob/main/tokenizer_config.json
-- [llama.cpp server documentation](https://github.com/ggml-org/llama.cpp/blob/master/tools/server/README.md)
+![L2-prefetch improvement across context depth](docs/assets/decode-long-context-speedup.png)
